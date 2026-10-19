@@ -355,6 +355,30 @@ body.started .cam{opacity:1;transform:none;pointer-events:auto;}
 .cam .auto.on{color:#1a0a12;background:linear-gradient(140deg,var(--gold),var(--rose-3));
   border-color:transparent;box-shadow:0 0 20px rgba(255,223,176,.6);}
 
+/* ============ NÚT NHẠC ============ */
+.snd{position:fixed;left:14px;top:calc(14px + env(safe-area-inset-top));z-index:12;
+  width:38px;height:38px;border-radius:50%;display:grid;place-items:center;
+  color:var(--rose-2);background:linear-gradient(160deg, rgba(255,175,205,.18), rgba(10,6,14,.68));
+  border:1px solid rgba(255,223,176,.24);
+  box-shadow:0 10px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.16), 0 0 26px rgba(244,115,154,.14);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  opacity:0;transform:translateY(-10px);pointer-events:none;
+  transition:opacity .8s ease .9s, transform .9s var(--ease) .9s, color .3s var(--ease),
+    background .3s var(--ease), box-shadow .3s var(--ease);}
+body.started .snd{opacity:1;transform:none;pointer-events:auto;}
+.snd svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;position:relative;}
+.snd .wv{transition:opacity .3s ease;}
+.snd.off{color:var(--muted);}
+.snd.off .wv{opacity:0;}
+.snd::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid rgba(255,169,196,.55);
+  opacity:0;pointer-events:none;}
+.snd:not(.off)::after{animation:sndPulse 2.6s ease-out infinite;}
+@keyframes sndPulse{0%{transform:scale(.85);opacity:.8;}100%{transform:scale(1.5);opacity:0;}}
+.snd:hover{color:#fff;background:rgba(255,169,196,.26);
+  box-shadow:0 6px 18px rgba(0,0,0,.4), 0 0 18px rgba(244,115,154,.6);}
+.snd:active{transform:scale(.9);}
+
 /* ============ INTRO ============ */
 .intro{position:fixed;inset:0;z-index:20;display:grid;place-items:center;
   background:radial-gradient(90% 62% at 50% 54%, #1d0c17 0%, #0a0610 55%, #040407 100%);
@@ -447,13 +471,15 @@ body.started .cam{opacity:1;transform:none;pointer-events:auto;}
   .flower-wrap{transform:none;opacity:1;}
   .script span,.card-body span,.card-sign span{opacity:1;filter:none;transform:none;}
   .rays,.aurora i,.flower-wrap::after,.heart-pulse em,.ring-core em,.haze,.ring-spot,.card-foil,
-  .frame .c::after,.crest::before,.fw-ring{animation:none;}
+  .frame .c::after,.crest::before,.fw-ring,.snd::after{animation:none;}
   .ring3d{animation:none;}
   .ring3d .wish{opacity:1;filter:none;}
 }
 </style>
 </head>
 <body>
+
+<audio id="bgm" src="GTok-music-897D8DCF-A907-4EB3-87BB-D4DF141015DF.mp3" loop preload="auto"></audio>
 
 <div class="bg">
   <div class="beam"></div>
@@ -580,6 +606,14 @@ body.started .cam{opacity:1;transform:none;pointer-events:auto;}
   </section>
 </div>
 
+<button class="snd" id="snd" aria-label="Bật hoặc tắt nhạc" title="Bật / tắt nhạc">
+  <svg viewBox="0 0 24 24">
+    <path d="M4 9.4h3.1l4.3-3.7v12.6L7.1 14.6H4z"/>
+    <path class="wv" d="M14.9 8.7a4.7 4.7 0 0 1 0 6.6"/>
+    <path class="wv" d="M17.3 6.2a8.1 8.1 0 0 1 0 11.6"/>
+  </svg>
+</button>
+
 <div class="cam" id="cam">
   <button data-cam="out" aria-label="thu nhỏ" title="Thu nhỏ">
     <svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
@@ -674,6 +708,8 @@ body.started .cam{opacity:1;transform:none;pointer-events:auto;}
   var camZoom = document.getElementById('camZoom');
   var camEl   = document.getElementById('cam');
   var scenesEl= document.getElementById('scenes');
+  var bgm     = document.getElementById('bgm');
+  var sndBtn  = document.getElementById('snd');
   var sceneEls= [].slice.call(scenesEl.querySelectorAll('.scene'));
   var reduce  = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var mobile  = window.matchMedia('(max-width: 820px)').matches;
@@ -1065,6 +1101,7 @@ body.started .cam{opacity:1;transform:none;pointer-events:auto;}
     started = true;
     intro.classList.add('gone');
     document.body.classList.add('started');
+    playMusic();
     setTimeout(function(){
       render(0); idx = 0;
       hint.classList.add('show');
@@ -1074,9 +1111,47 @@ body.started .cam{opacity:1;transform:none;pointer-events:auto;}
   intro.addEventListener('pointerdown', start);
   intro.addEventListener('click', start);
 
+  /* ==================== NHẠC NỀN ==================== */
+  var MUSIC_VOL = 0.72, musicOn = true, fadeTimer = 0;
+
+  function fadeTo(target, ms){
+    clearInterval(fadeTimer);
+    var v0 = bgm.volume, stepMs = 20, n = Math.max(1, Math.round(ms / stepMs)), i = 0;
+    fadeTimer = setInterval(function(){
+      i++;
+      bgm.volume = clamp(v0 + (target - v0) * (i / n), 0, 1);
+      if(i >= n){ clearInterval(fadeTimer); fadeTimer = 0; bgm.volume = target; }
+    }, stepMs);
+  }
+
+  function playMusic(){
+    if(!musicOn){ return; }
+    bgm.volume = 0;
+    var pr = bgm.play();
+    if(pr && pr.catch){ pr.catch(function(){}); }
+    fadeTo(MUSIC_VOL, 2400);
+  }
+
+  function pauseMusic(){
+    fadeTo(0, 320);
+    setTimeout(function(){ if(!musicOn){ bgm.pause(); } }, 380);
+  }
+
+  sndBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    musicOn = !musicOn;
+    sndBtn.classList.toggle('off', !musicOn);
+    if(musicOn){ playMusic(); } else { pauseMusic(); }
+  });
+
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden){ bgm.pause(); }
+    else if(musicOn && started){ playMusic(); }
+  });
+
   /* ==================== CHẠM / KÉO CAMERA ==================== */
   var ptrs = {}, pMoved = 0, startX = 0, startY = 0, pinchD0 = 0, pinchZ0 = 1;
-  function fromUI(e){ return !!(e.target && e.target.closest && e.target.closest('#cam')); }
+  function fromUI(e){ return !!(e.target && e.target.closest && e.target.closest('#cam, #snd')); }
   function pcount(){ var c = 0; for(var k in ptrs){ if(ptrs.hasOwnProperty(k)){ c++; } } return c; }
   function pdist(){
     var a = [], k;
